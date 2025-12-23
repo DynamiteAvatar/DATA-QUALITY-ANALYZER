@@ -1,28 +1,3 @@
-#!/usr/bin/env python3
-"""
-Unified Data Quality Analyzer & Intelligent Schema Evolution Assistant (CLI / Local)
-
-- CSV-only ingestion (files, folder, or zip)
-- Preprocessing: column standardization, missing symbol handling, type coercion
-- Data Quality:
-    * Completeness (missing)
-    * Duplicates (exact + optional fuzzy)
-    * Consistency (email/phone)
-    * Validity (derived from consistency)
-    * Uniqueness per column (candidate key detection)
-    * Numeric profiling (min/max/mean/etc.)
-    * Text profiling (length and distinct stats)
-    * Aggregate Data Quality Score
-- Schema change detection between versions (CLI multi-file mode)
-- History persisted in SQLite (data_quality_history.db)
-- Exports Power BI–ready CSVs to output_dir
-
-Usage examples:
-    python data_analyser.py --files data/jan.csv data/feb.csv --output_dir ./dq_output
-    python data_analyser.py --folder ./datasets_history --output_dir ./dq_output
-    python data_analyser.py --zip datasets.zip --output_dir ./dq_output
-"""
-
 from __future__ import annotations
 import os
 import sys
