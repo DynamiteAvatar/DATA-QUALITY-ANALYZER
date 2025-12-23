@@ -1,4 +1,4 @@
-                                                         ** UNIFIED DATA QUALITY ANALYZER**
+**UNIFIED DATA QUALITY ANALYZER**                                                      
 
 🔹 **Overview**
 
@@ -62,5 +62,5 @@ This tool allows users to detect these issues early, before using the data for a
 
 ⇢ Cleaned CSV expo
 
-**THANKS FOR READING**
+**THANKS FOR READING !!!**
 
