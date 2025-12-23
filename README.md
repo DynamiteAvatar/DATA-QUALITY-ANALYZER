@@ -11,9 +11,13 @@ The project focuses on explainable, logic-based data quality checks instead of h
 In real-world projects, datasets often contain:
 
 ◉ Missing values
+
 ◉ Duplicate records
+
 ◉ Invalid formats (emails, phone numbers, etc.)
+
 ◉ Redundant columns
+
 ◉ Hidden data inconsistencies
 
 This tool allows users to detect these issues early, before using the data for analytics, BI, or ML.
@@ -21,28 +25,41 @@ This tool allows users to detect these issues early, before using the data for a
 🔹 **Technicalitites**
 
 **Language**: Python
+
 **UI Framework**: Flet (web-based interactive UI)
+
 **Data Processing**: Pandas, NumPy
 
 **Data Quality Engine:**
 ⇢ Missing value detection
+
 ⇢ Duplicate row and column detection
+
 ⇢ Consistency and format validation
+
 ⇢ Dataset health & completeness scoring
 
 **Visualization**: Matplotlib, Seaborn
 
 ⇢ Missing data heatmap
+
 ⇢ Correlation matrix
+
 ⇢ Distribution analysis
+
 ⇢ Column quality risk matrix
 
 **Interactivity:**
+
 ⇢ Clickable tables with issue inspection panel
+
 ⇢ Graph explanation dialogs
 
+
 **File Handling:**
+
 ⇢ CSV ingestion
+
 ⇢ Cleaned CSV expo
 
 **THANKS FOR READING**
