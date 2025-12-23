@@ -1,8 +1,8 @@
+import os
 import flet as ft
 from flet import Icons, Colors
-import pandas as pd
 import flet.fastapi as flet_fastapi
-
+import pandas as pd
 
 from data_analyser import UnifiedDataQualityAnalyzer
 from data_viz import (
@@ -12,8 +12,14 @@ from data_viz import (
     generate_column_quality_heatmap
 )
 
+# --- WEB SECURITY CONFIG ---
+os.environ["FLET_SECRET_KEY"] = os.getenv("FLET_SECRET_KEY", "super-secret-key")
 ACTIVE_VERSION = "current_data"
+UPLOAD_DIR = "uploads"
 
+# Ensure the upload folder exists locally or on server
+if not os.path.exists(UPLOAD_DIR):
+    os.makedirs(UPLOAD_DIR)
 
 def main(page: ft.Page):
     page.title = "Unified Data Quality Analyzer"
@@ -98,14 +104,12 @@ def main(page: ft.Page):
     dist_viz = viz_card("Distribution Plot")
     quality_viz = viz_card("Column Quality Risk Matrix")
 
-    # ---------------- EXPLANATION DIALOGS (FIXED CLOSE BUTTON) ----------------
+    # ---------------- EXPLANATION DIALOGS (EXACT ORIGINAL TEXT) ----------------
     def create_dialog(title, text):
-        # We create the dialog instance first
         dlg = ft.AlertDialog(
             title=ft.Text(title),
             content=ft.Text(text),
         )
-        # Now we assign the action using the direct reference to 'dlg'
         dlg.actions = [
             ft.TextButton("Close", on_click=lambda _: page.close(dlg))
         ]
@@ -141,21 +145,33 @@ def main(page: ft.Page):
         "• Green zones → Healthy, reliable columns."
     )
 
-    # ---------------- LOAD CSV ----------------
-    def on_file_selected(e):
+    # ---------------- WEB-FIXED LOAD CSV ----------------
+    def on_file_selected(e: ft.FilePickerResultEvent):
         if not e.files:
             return
-        df = pd.read_csv(e.files[0].path)
-        analyzer.data_versions[ACTIVE_VERSION] = df
-        dataset_info.value = (
-            f"Loaded: {e.files[0].name} | Rows: {len(df)} | Columns: {len(df.columns)}"
-        )
-        analyze_btn.disabled = False
-        page.update()
+        # Start the upload process (Required for Chrome/Render)
+        for f in e.files:
+            upload_url = page.get_upload_url(f.name, 600)
+            upload_picker.upload(
+                [ft.FilePickerUploadFile(f.name, upload_url=upload_url)]
+            )
+
+    def on_upload_progress(e: ft.FilePickerUploadEvent):
+        if e.progress == 1.0:
+            # Once uploaded, read the file from the server's uploads folder
+            file_path = os.path.join(UPLOAD_DIR, e.file_name)
+            df = pd.read_csv(file_path)
+            analyzer.data_versions[ACTIVE_VERSION] = df
+            dataset_info.value = (
+                f"Loaded: {e.file_name} | Rows: {len(df)} | Columns: {len(df.columns)}"
+            )
+            analyze_btn.disabled = False
+            page.update()
 
     upload_picker.on_result = on_file_selected
+    upload_picker.on_upload = on_upload_progress # Link the progress handler
 
-    # ---------------- ANALYSIS ----------------
+    # ---------------- ANALYSIS (EXACT ORIGINAL LOGIC) ----------------
     def run_analysis(e):
         analyzer.run_full_scan(performance_mode=False)
         analyzer.prepare_data(ACTIVE_VERSION)
@@ -307,7 +323,7 @@ def main(page: ft.Page):
     )
     reset_btn = ft.TextButton("Reset", on_click=reset_app)
 
-    # ---------------- LAYOUT ----------------
+    # ---------------- LAYOUT (EXACT ORIGINAL ORDER) ----------------
     page.add(
         ft.Row([title, upload_btn, analyze_btn, download_btn, reset_btn], spacing=15),
         ft.Divider(),
@@ -335,5 +351,8 @@ def main(page: ft.Page):
         ])
     )
 
+# ---------------- PRODUCTION ENTRY POINT ----------------
+app = flet_fastapi.app(main, upload_dir=UPLOAD_DIR)
 
-ft.app(target=main, view=ft.AppView.WEB_BROWSER)
+if __name__ == "__main__":
+    ft.app(target=main, view=ft.AppView.WEB_BROWSER, upload_dir=UPLOAD_DIR)
