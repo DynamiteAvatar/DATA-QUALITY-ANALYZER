@@ -16,7 +16,6 @@ os.environ["FLET_SECRET_KEY"] = os.getenv("FLET_SECRET_KEY", "super-secret-key")
 ACTIVE_VERSION = "current_data"
 UPLOAD_DIR = "uploads"
 
-# Ensure the upload folder exists locally or on server
 if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR)
 
@@ -28,6 +27,16 @@ def main(page: ft.Page):
 
     analyzer = UnifiedDataQualityAnalyzer()
 
+    # ---------------- FUNCTIONS ----------------
+    def reset_app(e):
+        page.clean()
+        main(page)
+
+    def update_inspector(title, text):
+        inspector_title.value = title
+        inspector_body.value = text
+        page.update()
+
     # ---------------- FILE PICKERS ----------------
     upload_picker = ft.FilePicker()
     save_picker = ft.FilePicker()
@@ -35,7 +44,6 @@ def main(page: ft.Page):
 
     # ---------------- HEADER ----------------
     title = ft.Text("Unified Data Quality Analyzer", size=22, weight="bold")
-
     dataset_info = ft.Text("No dataset loaded", italic=True)
 
     health_text = ft.Text()
@@ -44,30 +52,22 @@ def main(page: ft.Page):
 
     # ---------------- INSPECTOR PANEL ----------------
     inspector_title = ft.Text("Issue Inspector", weight="bold")
-    inspector_body = ft.Text(
-        "Click any row in the tables to see details here.",
-        selectable=True
-    )
+    inspector_body = ft.Text("Click any row in the tables to see details here.", selectable=True)
 
     inspector_panel = ft.Container(
         width=320,
         padding=15,
         border_radius=8,
-        bgcolor=ft.Colors.WHITE, # Updated to ft.Colors
-        border=ft.border.all(1, ft.Colors.GREY_300), # Updated to ft.Colors
+        bgcolor=ft.Colors.WHITE,
+        border=ft.border.all(1, ft.Colors.GREY_300),
         content=ft.Column([inspector_title, ft.Divider(), inspector_body])
     )
 
-    def update_inspector(title, text):
-        inspector_title.value = title
-        inspector_body.value = text
-        page.update()
-
-    # ---------------- SAFE TABLE INIT ----------------
+    # ---------------- CARDS & VIZ INIT ----------------
     def table_card(title_text):
         return ft.Container(
             expand=True,
-            border=ft.border.all(1, ft.Colors.GREY_300), # Updated to ft.Colors
+            border=ft.border.all(1, ft.Colors.GREY_300),
             border_radius=8,
             padding=10,
             content=ft.Column([
@@ -81,11 +81,10 @@ def main(page: ft.Page):
     dup_rows_card = table_card("Duplicate Rows")
     dup_cols_card = table_card("Duplicate Columns")
 
-    # ---------------- VISUAL PLACEHOLDERS ----------------
     def viz_card(title_text):
         return ft.Container(
             expand=True,
-            border=ft.border.all(1, ft.Colors.GREY_300), # Updated to ft.Colors
+            border=ft.border.all(1, ft.Colors.GREY_300),
             border_radius=8,
             padding=10,
             content=ft.Column([
@@ -103,72 +102,49 @@ def main(page: ft.Page):
     dist_viz = viz_card("Distribution Plot")
     quality_viz = viz_card("Column Quality Risk Matrix")
 
-    # ---------------- EXPLANATION DIALOGS ----------------
+    # ---------------- DIALOGS ----------------
     def create_dialog(title, text):
         dlg = ft.AlertDialog(
             title=ft.Text(title),
             content=ft.Text(text),
         )
-        dlg.actions = [
-            ft.TextButton("Close", on_click=lambda _: page.close(dlg))
-        ]
+        dlg.actions = [ft.TextButton("Close", on_click=lambda _: page.close(dlg))]
         return dlg
 
-    dist_dialog = create_dialog(
-        "Distribution Explained",
-        "This curve shows how numeric values are distributed.\n\n"
-        "• Right skew → large outliers\n"
-        "• Left skew → compressed upper range\n"
-        "• Symmetric → normal-like distribution"
-    )
+    dist_dialog = create_dialog("Distribution Explained", "This curve shows how numeric values are distributed.\n\n• Right skew → large outliers\n• Left skew → compressed upper range\n• Symmetric → normal-like distribution")
+    missing_dialog = create_dialog("Missing Data Heatmap Explained", "Visualizes where data is missing across the dataset.\n\n• Dark patches → Missing values\n• Patterns → May indicate systematic collection errors.")
+    corr_dialog = create_dialog("Correlation Matrix Explained", "Shows relationships between numerical features.\n\n• Near 1.0 → Strong positive link\n• Near -1.0 → Strong inverse link\n• Near 0 → No linear relationship.")
+    quality_dialog = create_dialog("Quality Risk Matrix Explained", "A composite view of column health.\n\n• Red zones → High missingness or low cardinality issues.\n• Green zones → Healthy, reliable columns.")
 
-    missing_dialog = create_dialog(
-        "Missing Data Heatmap Explained",
-        "Visualizes where data is missing across the dataset.\n\n"
-        "• Dark patches → Missing values\n"
-        "• Patterns → May indicate systematic collection errors."
-    )
-
-    corr_dialog = create_dialog(
-        "Correlation Matrix Explained",
-        "Shows relationships between numerical features.\n\n"
-        "• Near 1.0 → Strong positive link\n"
-        "• Near -1.0 → Strong inverse link\n"
-        "• Near 0 → No linear relationship."
-    )
-
-    quality_dialog = create_dialog(
-        "Quality Risk Matrix Explained",
-        "A composite view of column health.\n\n"
-        "• Red zones → High missingness or low cardinality issues.\n"
-        "• Green zones → Healthy, reliable columns."
-    )
-
-    # ---------------- WEB-FIXED LOAD CSV ----------------
+    # ---------------- SMART LOAD CSV ----------------
     def on_file_selected(e: ft.FilePickerResultEvent):
         if not e.files:
             return
-        for f in e.files:
-            upload_url = page.get_upload_url(f.name, 600)
-            upload_picker.upload(
-                [ft.FilePickerUploadFile(f.name, upload_url=upload_url)]
-            )
+        if page.web:
+            for f in e.files:
+                upload_url = page.get_upload_url(f.name, 600)
+                upload_picker.upload([ft.FilePickerUploadFile(f.name, upload_url=upload_url)])
+        else:
+            for f in e.files:
+                df = pd.read_csv(f.path)
+                analyzer.data_versions[ACTIVE_VERSION] = df
+                dataset_info.value = f"Loaded: {f.name} | Rows: {len(df)} | Columns: {len(df.columns)}"
+                analyze_btn.disabled = False
+                page.update()
 
     def on_upload_progress(e: ft.FilePickerUploadEvent):
         if e.progress == 1.0:
             file_path = os.path.join(UPLOAD_DIR, e.file_name)
             df = pd.read_csv(file_path)
             analyzer.data_versions[ACTIVE_VERSION] = df
-            dataset_info.value = (
-                f"Loaded: {e.file_name} | Rows: {len(df)} | Columns: {len(df.columns)}"
-            )
+            dataset_info.value = f"Loaded: {e.file_name} | Rows: {len(df)} | Columns: {len(df.columns)}"
             analyze_btn.disabled = False
             page.update()
 
     upload_picker.on_result = on_file_selected
     upload_picker.on_upload = on_upload_progress
 
-    # ---------------- ANALYSIS ----------------
+    # ---------------- FULL ANALYSIS (RESTORED LOGIC) ----------------
     def run_analysis(e):
         analyzer.run_full_scan(performance_mode=False)
         analyzer.prepare_data(ACTIVE_VERSION)
@@ -180,38 +156,43 @@ def main(page: ft.Page):
         completeness_text.value = f"Completeness %: {report['dimensions']['completeness_score']}"
         duplicate_text.value = f"Duplicate Rows: {report['duplicates_exact']['duplicate_rows_count']}"
 
-        # Missing Table
+        # Missing Data Table
         missing_card.content.controls[1] = ft.DataTable(
             columns=[ft.DataColumn(ft.Text("Column")), ft.DataColumn(ft.Text("Missing Count")), ft.DataColumn(ft.Text("Missing %"))],
-            rows=[ft.DataRow(cells=[ft.DataCell(ft.Text(m["column"])), ft.DataCell(ft.Text(str(m["missing_count"]))), ft.DataCell(ft.Text(str(m["missing_percent"])))],
-                on_select_changed=lambda e, m=m: update_inspector("Missing Data", f"Column: {m['column']}\nMissing: {m['missing_count']} ({m['missing_percent']}%)\n\nRecommendation: Impute or drop if sparse."))
-                for m in report["missing"]["missing_summary"]]
+            rows=[ft.DataRow(
+                cells=[ft.DataCell(ft.Text(m["column"])), ft.DataCell(ft.Text(str(m["missing_count"]))), ft.DataCell(ft.Text(str(m["missing_percent"])))],
+                on_select_changed=lambda e, m=m: update_inspector("Missing Data", f"Column: {m['column']}\nMissing: {m['missing_count']} ({m['missing_percent']}%)\n\nRecommendation: Impute or drop if sparse.")
+            ) for m in report["missing"]["missing_summary"]]
         )
 
         # Consistency Table
         consistency_card.content.controls[1] = ft.DataTable(
             columns=[ft.DataColumn(ft.Text("Column")), ft.DataColumn(ft.Text("Check")), ft.DataColumn(ft.Text("Invalid Count"))],
-            rows=[ft.DataRow(cells=[ft.DataCell(ft.Text(i["column"])), ft.DataCell(ft.Text(i["check"])), ft.DataCell(ft.Text(str(i["invalid_count"])))],
-                on_select_changed=lambda e, i=i: update_inspector("Consistency Issue", f"Column: {i['column']}\nRule: {i['check']}\nInvalid rows: {i['invalid_count']}"))
-                for i in report["consistency"]["issues"]]
+            rows=[ft.DataRow(
+                cells=[ft.DataCell(ft.Text(i["column"])), ft.DataCell(ft.Text(i["check"])), ft.DataCell(ft.Text(str(i["invalid_count"])))],
+                on_select_changed=lambda e, i=i: update_inspector("Consistency Issue", f"Column: {i['column']}\nRule: {i['check']}\nInvalid rows: {i['invalid_count']}")
+            ) for i in report["consistency"]["issues"]]
         )
 
-        # Duplicates Table
+        # Duplicate Rows Table
         dup_rows_card.content.controls[1] = ft.DataTable(
             columns=[ft.DataColumn(ft.Text("Row Index"))],
-            rows=[ft.DataRow(cells=[ft.DataCell(ft.Text(str(idx)))], on_select_changed=lambda e, idx=idx: update_inspector("Duplicate Row", f"Row index {idx} is duplicated.\nRecommendation: Safe to remove."))
-                for idx in report["duplicates_exact"]["duplicate_row_indices"]]
+            rows=[ft.DataRow(
+                cells=[ft.DataCell(ft.Text(str(idx)))],
+                on_select_changed=lambda e, idx=idx: update_inspector("Duplicate Row", f"Row index {idx} is duplicated.\nRecommendation: Safe to remove.")
+            ) for idx in report["duplicates_exact"]["duplicate_row_indices"]]
         )
 
         # Duplicate Columns Table
         dup_cols_card.content.controls[1] = ft.DataTable(
             columns=[ft.DataColumn(ft.Text("Type")), ft.DataColumn(ft.Text("Columns"))],
-            rows=[ft.DataRow(cells=[ft.DataCell(ft.Text("Value")), ft.DataCell(ft.Text(f"{a} vs {b}"))],
-                on_select_changed=lambda e, a=a, b=b: update_inspector("Duplicate Columns", f"Columns {a} and {b} contain identical data.\nRecommendation: Drop one."))
-                for a, b in report["duplicate_columns"]["duplicate_value_columns"]]
+            rows=[ft.DataRow(
+                cells=[ft.DataCell(ft.Text("Value")), ft.DataCell(ft.Text(f"{a} vs {b}"))],
+                on_select_changed=lambda e, a=a, b=b: update_inspector("Duplicate Columns", f"Columns {a} and {b} contain identical data.\nRecommendation: Drop one.")
+            ) for a, b in report["duplicate_columns"]["duplicate_value_columns"]]
         )
 
-        # Visuals (Updated with ft.Icons)
+        # VISUALS
         missing_viz.content.controls[1] = ft.Column([
             ft.Image(src_base64=generate_missing_data_heatmap(df), width=520),
             ft.TextButton("Explain Missing Data", icon=ft.Icons.INFO_OUTLINE, on_click=lambda _: page.open(missing_dialog))
@@ -235,34 +216,20 @@ def main(page: ft.Page):
         download_btn.disabled = False
         page.update()
 
-    # ---------------- DOWNLOAD & RESET ----------------
+    # ---------------- SAVE CSV ----------------
     def save_csv(e):
         if e.path:
             analyzer.data_versions[ACTIVE_VERSION].to_csv(e.path, index=False)
 
     save_picker.on_result = save_csv
 
-    def reset_app(e):
-        page.clean()
-        main(page)
-
-    # ---------------- BUTTONS (Updated with ft.Icons) ----------------
-    upload_btn = ft.ElevatedButton(
-        "Upload CSV", icon=ft.Icons.UPLOAD_FILE,
-        on_click=lambda _: upload_picker.pick_files(allowed_extensions=["csv"])
-    )
-    analyze_btn = ft.ElevatedButton(
-        "Analyze", icon=ft.Icons.SCIENCE,
-        disabled=True, on_click=run_analysis
-    )
-    download_btn = ft.ElevatedButton(
-        "Download Cleaned CSV", icon=ft.Icons.DOWNLOAD,
-        disabled=True,
-        on_click=lambda _: save_picker.save_file(file_name="cleaned.csv")
-    )
+    # ---------------- BUTTONS ----------------
+    upload_btn = ft.ElevatedButton("Upload CSV", icon=ft.Icons.UPLOAD_FILE, on_click=lambda _: upload_picker.pick_files(allowed_extensions=["csv"]))
+    analyze_btn = ft.ElevatedButton("Analyze", icon=ft.Icons.SCIENCE, disabled=True, on_click=run_analysis)
+    download_btn = ft.ElevatedButton("Download Cleaned CSV", icon=ft.Icons.DOWNLOAD, disabled=True, on_click=lambda _: save_picker.save_file(file_name="cleaned.csv"))
     reset_btn = ft.TextButton("Reset", on_click=reset_app)
 
-    # ---------------- LAYOUT (EXACT ORIGINAL ORDER) ----------------
+    # ---------------- LAYOUT (RE-ESTABLISHED) ----------------
     page.add(
         ft.Row([title, upload_btn, analyze_btn, download_btn, reset_btn], spacing=15),
         ft.Divider(),
@@ -285,8 +252,9 @@ def main(page: ft.Page):
         ])
     )
 
-# ---------------- PRODUCTION ENTRY POINT ----------------
+# --- ENTRY POINT ---
 app = flet_fastapi.app(main, upload_dir=UPLOAD_DIR)
 
 if __name__ == "__main__":
+    # This forces PyCharm to open the app in your default web browser
     ft.app(target=main, view=ft.AppView.WEB_BROWSER, upload_dir=UPLOAD_DIR)
