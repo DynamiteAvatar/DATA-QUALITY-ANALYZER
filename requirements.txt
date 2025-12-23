@@ -1,7 +1,6 @@
-flet
+flet==0.21.0
+flet-fastapi==0.21.0
+uvicorn==0.29.0
 pandas
-numpy
 matplotlib
 seaborn
-uvicorn
-flet-fastapi
