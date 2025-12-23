@@ -1,6 +1,5 @@
 import os
 import flet as ft
-from flet import Icons, Colors
 import flet.fastapi as flet_fastapi
 import pandas as pd
 
@@ -54,8 +53,8 @@ def main(page: ft.Page):
         width=320,
         padding=15,
         border_radius=8,
-        bgcolor=Colors.WHITE,
-        border=ft.border.all(1, Colors.GREY_300),
+        bgcolor=ft.Colors.WHITE, # Updated to ft.Colors
+        border=ft.border.all(1, ft.Colors.GREY_300), # Updated to ft.Colors
         content=ft.Column([inspector_title, ft.Divider(), inspector_body])
     )
 
@@ -68,7 +67,7 @@ def main(page: ft.Page):
     def table_card(title_text):
         return ft.Container(
             expand=True,
-            border=ft.border.all(1, Colors.GREY_300),
+            border=ft.border.all(1, ft.Colors.GREY_300), # Updated to ft.Colors
             border_radius=8,
             padding=10,
             content=ft.Column([
@@ -86,7 +85,7 @@ def main(page: ft.Page):
     def viz_card(title_text):
         return ft.Container(
             expand=True,
-            border=ft.border.all(1, Colors.GREY_300),
+            border=ft.border.all(1, ft.Colors.GREY_300), # Updated to ft.Colors
             border_radius=8,
             padding=10,
             content=ft.Column([
@@ -104,7 +103,7 @@ def main(page: ft.Page):
     dist_viz = viz_card("Distribution Plot")
     quality_viz = viz_card("Column Quality Risk Matrix")
 
-    # ---------------- EXPLANATION DIALOGS (EXACT ORIGINAL TEXT) ----------------
+    # ---------------- EXPLANATION DIALOGS ----------------
     def create_dialog(title, text):
         dlg = ft.AlertDialog(
             title=ft.Text(title),
@@ -149,7 +148,6 @@ def main(page: ft.Page):
     def on_file_selected(e: ft.FilePickerResultEvent):
         if not e.files:
             return
-        # Start the upload process (Required for Chrome/Render)
         for f in e.files:
             upload_url = page.get_upload_url(f.name, 600)
             upload_picker.upload(
@@ -158,7 +156,6 @@ def main(page: ft.Page):
 
     def on_upload_progress(e: ft.FilePickerUploadEvent):
         if e.progress == 1.0:
-            # Once uploaded, read the file from the server's uploads folder
             file_path = os.path.join(UPLOAD_DIR, e.file_name)
             df = pd.read_csv(file_path)
             analyzer.data_versions[ACTIVE_VERSION] = df
@@ -169,9 +166,9 @@ def main(page: ft.Page):
             page.update()
 
     upload_picker.on_result = on_file_selected
-    upload_picker.on_upload = on_upload_progress # Link the progress handler
+    upload_picker.on_upload = on_upload_progress
 
-    # ---------------- ANALYSIS (EXACT ORIGINAL LOGIC) ----------------
+    # ---------------- ANALYSIS ----------------
     def run_analysis(e):
         analyzer.run_full_scan(performance_mode=False)
         analyzer.prepare_data(ACTIVE_VERSION)
@@ -183,141 +180,83 @@ def main(page: ft.Page):
         completeness_text.value = f"Completeness %: {report['dimensions']['completeness_score']}"
         duplicate_text.value = f"Duplicate Rows: {report['duplicates_exact']['duplicate_rows_count']}"
 
-        # ---------- Missing Data Table ----------
+        # Missing Table
         missing_card.content.controls[1] = ft.DataTable(
-            columns=[
-                ft.DataColumn(ft.Text("Column")),
-                ft.DataColumn(ft.Text("Missing Count")),
-                ft.DataColumn(ft.Text("Missing %"))
-            ],
-            rows=[
-                ft.DataRow(
-                    cells=[
-                        ft.DataCell(ft.Text(m["column"])),
-                        ft.DataCell(ft.Text(str(m["missing_count"]))),
-                        ft.DataCell(ft.Text(str(m["missing_percent"])))
-                    ],
-                    on_select_changed=lambda e, m=m: update_inspector(
-                        "Missing Data",
-                        f"Column: {m['column']}\n"
-                        f"Missing: {m['missing_count']} ({m['missing_percent']}%)\n\n"
-                        "Recommendation: Impute or drop if sparse."
-                    )
-                )
-                for m in report["missing"]["missing_summary"]
-            ]
+            columns=[ft.DataColumn(ft.Text("Column")), ft.DataColumn(ft.Text("Missing Count")), ft.DataColumn(ft.Text("Missing %"))],
+            rows=[ft.DataRow(cells=[ft.DataCell(ft.Text(m["column"])), ft.DataCell(ft.Text(str(m["missing_count"]))), ft.DataCell(ft.Text(str(m["missing_percent"])))],
+                on_select_changed=lambda e, m=m: update_inspector("Missing Data", f"Column: {m['column']}\nMissing: {m['missing_count']} ({m['missing_percent']}%)\n\nRecommendation: Impute or drop if sparse."))
+                for m in report["missing"]["missing_summary"]]
         )
 
-        # ---------- Consistency Table ----------
+        # Consistency Table
         consistency_card.content.controls[1] = ft.DataTable(
-            columns=[
-                ft.DataColumn(ft.Text("Column")),
-                ft.DataColumn(ft.Text("Check")),
-                ft.DataColumn(ft.Text("Invalid Count"))
-            ],
-            rows=[
-                ft.DataRow(
-                    cells=[
-                        ft.DataCell(ft.Text(i["column"])),
-                        ft.DataCell(ft.Text(i["check"])),
-                        ft.DataCell(ft.Text(str(i["invalid_count"])))
-                    ],
-                    on_select_changed=lambda e, i=i: update_inspector(
-                        "Consistency Issue",
-                        f"Column: {i['column']}\n"
-                        f"Rule: {i['check']}\n"
-                        f"Invalid rows: {i['invalid_count']}"
-                    )
-                )
-                for i in report["consistency"]["issues"]
-            ]
+            columns=[ft.DataColumn(ft.Text("Column")), ft.DataColumn(ft.Text("Check")), ft.DataColumn(ft.Text("Invalid Count"))],
+            rows=[ft.DataRow(cells=[ft.DataCell(ft.Text(i["column"])), ft.DataCell(ft.Text(i["check"])), ft.DataCell(ft.Text(str(i["invalid_count"])))],
+                on_select_changed=lambda e, i=i: update_inspector("Consistency Issue", f"Column: {i['column']}\nRule: {i['check']}\nInvalid rows: {i['invalid_count']}"))
+                for i in report["consistency"]["issues"]]
         )
 
-        # ---------- Duplicate Rows Table ----------
+        # Duplicates Table
         dup_rows_card.content.controls[1] = ft.DataTable(
             columns=[ft.DataColumn(ft.Text("Row Index"))],
-            rows=[
-                ft.DataRow(
-                    cells=[ft.DataCell(ft.Text(str(idx)))],
-                    on_select_changed=lambda e, idx=idx: update_inspector(
-                        "Duplicate Row",
-                        f"Row index {idx} is duplicated.\n"
-                        "Recommendation: Safe to remove."
-                    )
-                )
-                for idx in report["duplicates_exact"]["duplicate_row_indices"]
-            ]
+            rows=[ft.DataRow(cells=[ft.DataCell(ft.Text(str(idx)))], on_select_changed=lambda e, idx=idx: update_inspector("Duplicate Row", f"Row index {idx} is duplicated.\nRecommendation: Safe to remove."))
+                for idx in report["duplicates_exact"]["duplicate_row_indices"]]
         )
 
-        # ---------- Duplicate Columns Table ----------
+        # Duplicate Columns Table
         dup_cols_card.content.controls[1] = ft.DataTable(
-            columns=[
-                ft.DataColumn(ft.Text("Type")),
-                ft.DataColumn(ft.Text("Columns"))
-            ],
-            rows=[
-                ft.DataRow(
-                    cells=[
-                        ft.DataCell(ft.Text("Value")),
-                        ft.DataCell(ft.Text(f"{a} vs {b}"))
-                    ],
-                    on_select_changed=lambda e, a=a, b=b: update_inspector(
-                        "Duplicate Columns",
-                        f"Columns {a} and {b} contain identical data.\n"
-                        "Recommendation: Drop one."
-                    )
-                )
-                for a, b in report["duplicate_columns"]["duplicate_value_columns"]
-            ]
+            columns=[ft.DataColumn(ft.Text("Type")), ft.DataColumn(ft.Text("Columns"))],
+            rows=[ft.DataRow(cells=[ft.DataCell(ft.Text("Value")), ft.DataCell(ft.Text(f"{a} vs {b}"))],
+                on_select_changed=lambda e, a=a, b=b: update_inspector("Duplicate Columns", f"Columns {a} and {b} contain identical data.\nRecommendation: Drop one."))
+                for a, b in report["duplicate_columns"]["duplicate_value_columns"]]
         )
 
-        # ---------- VISUALS ----------
+        # Visuals (Updated with ft.Icons)
         missing_viz.content.controls[1] = ft.Column([
             ft.Image(src_base64=generate_missing_data_heatmap(df), width=520),
-            ft.TextButton("Explain Missing Data", icon=Icons.INFO_OUTLINE, on_click=lambda _: page.open(missing_dialog))
+            ft.TextButton("Explain Missing Data", icon=ft.Icons.INFO_OUTLINE, on_click=lambda _: page.open(missing_dialog))
         ])
 
         corr_viz.content.controls[1] = ft.Column([
             ft.Image(src_base64=generate_feature_correlation_clustermap(df), width=520),
-            ft.TextButton("Explain Correlation", icon=Icons.INFO_OUTLINE, on_click=lambda _: page.open(corr_dialog))
+            ft.TextButton("Explain Correlation", icon=ft.Icons.INFO_OUTLINE, on_click=lambda _: page.open(corr_dialog))
         ])
 
         dist_viz.content.controls[1] = ft.Column([
             ft.Image(src_base64=generate_numerical_distribution_plot(df), width=520),
-            ft.TextButton("Explain Distribution", icon=Icons.INFO_OUTLINE, on_click=lambda _: page.open(dist_dialog))
+            ft.TextButton("Explain Distribution", icon=ft.Icons.INFO_OUTLINE, on_click=lambda _: page.open(dist_dialog))
         ])
 
         quality_viz.content.controls[1] = ft.Column([
             ft.Image(src_base64=generate_column_quality_heatmap(df), width=520),
-            ft.TextButton("Explain Quality Risk", icon=Icons.INFO_OUTLINE, on_click=lambda _: page.open(quality_dialog))
+            ft.TextButton("Explain Quality Risk", icon=ft.Icons.INFO_OUTLINE, on_click=lambda _: page.open(quality_dialog))
         ])
 
         download_btn.disabled = False
         page.update()
 
-    # ---------------- DOWNLOAD ----------------
+    # ---------------- DOWNLOAD & RESET ----------------
     def save_csv(e):
         if e.path:
             analyzer.data_versions[ACTIVE_VERSION].to_csv(e.path, index=False)
 
     save_picker.on_result = save_csv
 
-    # ---------------- RESET ----------------
     def reset_app(e):
         page.clean()
         main(page)
 
-    # ---------------- BUTTONS ----------------
+    # ---------------- BUTTONS (Updated with ft.Icons) ----------------
     upload_btn = ft.ElevatedButton(
-        "Upload CSV", icon=Icons.UPLOAD_FILE,
+        "Upload CSV", icon=ft.Icons.UPLOAD_FILE,
         on_click=lambda _: upload_picker.pick_files(allowed_extensions=["csv"])
     )
     analyze_btn = ft.ElevatedButton(
-        "Analyze", icon=Icons.SCIENCE,
+        "Analyze", icon=ft.Icons.SCIENCE,
         disabled=True, on_click=run_analysis
     )
     download_btn = ft.ElevatedButton(
-        "Download Cleaned CSV", icon=Icons.DOWNLOAD,
+        "Download Cleaned CSV", icon=ft.Icons.DOWNLOAD,
         disabled=True,
         on_click=lambda _: save_picker.save_file(file_name="cleaned.csv")
     )
@@ -330,8 +269,6 @@ def main(page: ft.Page):
         dataset_info,
         ft.Row([health_text, completeness_text, duplicate_text], spacing=30),
         ft.Divider(),
-
-        # Data Quality Section with Inspector
         ft.Row([
             ft.Column([
                 ft.Text("Data Quality", size=18, weight="bold"),
@@ -340,10 +277,7 @@ def main(page: ft.Page):
             ], expand=True),
             inspector_panel
         ], vertical_alignment=ft.CrossAxisAlignment.START),
-
         ft.Divider(),
-
-        # Visual Analysis Section
         ft.Column([
             ft.Text("Visual Analysis", size=18, weight="bold"),
             ft.Row([missing_viz, corr_viz], spacing=20),
